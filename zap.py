@@ -34,8 +34,6 @@ load_dotenv()
 proxy_url = os.getenv('PROXY_URL')
 
 # Third-party library imports
-import numpy as np
-import pandas as pd
 import pymysql
 import requests
 from bs4 import BeautifulSoup 
