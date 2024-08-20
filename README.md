@@ -15,7 +15,11 @@
 
 
 
-Script construído em Python que extrai e armazena informações sobre os anúncios disponibilizados no site Zap Imóveis em um banco de dados SQL containerizado. O Script emprega Selenium para o web scraping, e BeautifulSoup para o parse do HTML. Para mais informações sobre sua utilização, leia as instruções abaixo.
+Script construído em Python que extrai e armazena informações sobre os anúncios disponibilizados no site Zap Imóveis em um banco de dados SQL containerizado. 
+
+O Script emprega Selenium para o web scraping, e BeautifulSoup para o parse do HTML. 
+
+Para mais informações sobre sua utilização, leia as instruções abaixo.
 
 
 
@@ -61,7 +65,7 @@ python-dotenv
 ```
 PROXY_URL=<SUA_URL_DE_PROXY>
 ```
-4. Instale a versão correta do [geckodriver](https://github.com/mozilla/geckodriver/releases) para o seu sistema operacional. Baixe e instale a versão adequada (Linux, Mac, Windows) para garantir que o script funcione corretamente.
+4. Instale a versão correta do [geckodriver](https://github.com/mozilla/geckodriver/releases) para o seu sistema operacional. Baixe e instale a versão adequada (Linux, Mac, Windows) para garantir que o script funcione corretamente
 
 5. O arquivo docker-compose.yml contém uma base de dados SQL pronta para uso. Para inicializá-la, com o Docker instalado e rodando, digite os seguinte comandos: 
 ```
@@ -83,6 +87,6 @@ python test.py
 
 ## Observações
 
-- Na raiz do projeto, há um arquivo HTML chamado `scraped_page_example.html` que mostra o formato de página que afetada pelo scraping do script.
-- Ainda na raiz do projeto, há o arquivo `output_format_example.json`, que mostra como cada imóvel da página é inserido na tabela SQL final `properties`.
+- Na raiz do projeto, há um arquivo HTML chamado `scraped_page_example.html` que mostra o formato de página que afetada pelo scraping do script
+- Ainda na raiz do projeto, há o arquivo `output_format_example.json`, que mostra como cada imóvel da página é inserido na tabela SQL final `properties`
 
