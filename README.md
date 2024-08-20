@@ -89,4 +89,15 @@ python test.py
 
 - Na raiz do projeto, há um arquivo HTML chamado `scraped_page_example.html` que mostra o formato de página que afetada pelo scraping do script
 - Ainda na raiz do projeto, há o arquivo `output_format_example.json`, que mostra como cada imóvel da página é inserido na tabela SQL final `properties`
+- O script examina apenas uma única página por vez, para evitar a detecção de bots do site. Caso deseje escanear mais do que uma única página, altere o valor da variável `url` na função `searchZapImoveis` para a página desejada. 
+Exemplo:
+
+```
+# first page
+https://www.zapimoveis.com.br/venda/apartamentos/sp+sao-paulo/?__ab=sup-hl-pl:newC,exp-aa-test:control,super-high:new,olx:control,phone-page:control,off-no-hl:new,zapcopsmig:control&transacao=venda&onde=,S%C3%A3o%20Paulo,S%C3%A3o%20Paulo,,,,,city,BR%3ESao%20Paulo%3ENULL%3ESao%20Paulo,-23.555771,-46.639557,&tipos=apartamento_residencial&pagina=1
+
+# second page
+https://www.zapimoveis.com.br/venda/apartamentos/sp+sao-paulo/?__ab=sup-hl-pl:newC,exp-aa-test:control,super-high:new,olx:control,phone-page:control,off-no-hl:new,zapcopsmig:control&transacao=venda&onde=,S%C3%A3o%20Paulo,S%C3%A3o%20Paulo,,,,,city,BR%3ESao%20Paulo%3ENULL%3ESao%20Paulo,-23.555771,-46.639557,&tipos=apartamento_residencial&pagina=2
+
+```
 
