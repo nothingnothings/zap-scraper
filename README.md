@@ -2,7 +2,7 @@
 <p align="center">
   <img src="src/android-chrome-512x512.png" alt="AngularDex-logo" width="120px" height="120px"/>
   <br>
-  <i>Este script é um exemplo de Web Scraper construído com
+  <i>Este script é um exemplo de Web Scraper construído em
     <br>Python.</i>
   <br>
 </p>
