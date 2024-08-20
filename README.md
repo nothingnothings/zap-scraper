@@ -40,3 +40,12 @@ Script construído em Python que extrai e armazena informações sobre os anúnc
 ├── test.py
 └── zap.py
 ```
+
+## Requirements.txt
+
+
+pymysql
+requests
+beautifulsoup4
+selenium
+python-dotenv
