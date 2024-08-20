@@ -50,3 +50,39 @@ beautifulsoup4
 selenium
 python-dotenv
 ```
+
+## Instalação/Utilização 
+
+1. Rode `git clone` para clonar o projeto dentro de seu repositório local Git
+
+2. Crie uma conta gratuita no site [ZenRows](https://www.zenrows.com/) para obter um proxy. Após a criação da conta, copie a URL de proxy vista em `https://app.zenrows.com/builder`, logo abaixo da API key
+
+3. Insira a URL do proxy (e.g `http://<SUA_API_KEY>:@proxy.zenrows.com:8001`), recebida no ZenRows, no arquivo .env na raiz do projeto. Para isso, renomeie o arquivo `.env.example` para `.env` e adicione a URL do proxy, neste formato:
+```
+PROXY_URL=<SUA_URL_DE_PROXY>
+```
+4. Instale a versão correta do [geckodriver](https://github.com/mozilla/geckodriver/releases) para o seu sistema operacional. Baixe e instale a versão adequada (Linux, Mac, Windows) para garantir que o script funcione corretamente.
+
+5. O arquivo docker-compose.yml contém uma base de dados SQL pronta para uso. Para inicializá-la, com o Docker instalado e rodando, digite os seguinte comandos: 
+```
+cd docker
+docker-compose up -d
+```
+
+6. Instale as dependências necessárias listadas no arquivo `requirements.txt` usando o `pip`:
+
+```
+pip install -r requirements.txt
+```
+
+7. Antes de executar o script principal `zap.py`, é recomendável rodar o script de teste `test.py`, o qual abre uma página do Google para garantir que tudo está funcionando corretamente:
+
+```
+python test.py
+```
+
+## Observações
+
+- Na raiz do projeto, há um arquivo HTML chamado `scraped_page_example.html` que mostra o formato de página que afetada pelo scraping do script.
+- Ainda na raiz do projeto, há o arquivo `output_format_example.json`, que mostra como cada imóvel da página é inserido na tabela SQL final `properties`.
+
