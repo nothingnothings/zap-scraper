@@ -134,18 +134,18 @@ def returnSeleniumSoup(url, timeAwait):
 
 
 # Scrolls down the page, so more items are loaded
-def scrollDown(minScrollAmount=1000, maxScrollAmount=1200, maxTotalScroll=2000, clickButton=False, xPathBtn="", minSleep=1.0, maxSleep=2.0):
+def scrollDown(minScrollAmount=1000, maxScrollAmount=1200, maxTotalScroll=2000, clickButton=False, xPathBtn="", minSleep=2.0, maxSleep=3.0):
     last_height = driver.execute_script("return document.body.scrollHeight")
     
     totalScrolled = 0
     
     # 160000 is a fair amount
-    while totalScrolled < 160000: 
+    while totalScrolled < 200000: 
         # Calculate the next scroll amount
         scrollAmount = random.randint(minScrollAmount, maxScrollAmount)
         
         # Scroll down by the calculated amount
-        driver.execute_script(f"window.scrollBy(0, window.innerHeight / 2);")
+        driver.execute_script(f"window.scrollBy(0, window.innerHeight / 5);")
         
         # Update the total scrolled amount
         totalScrolled += scrollAmount
@@ -185,7 +185,7 @@ def parse_item(item):
     # Extract Region and City
     region_tag = item.find('p', {'data-cy': 'rp-cardProperty-street-txt'})
     regiao = region_tag.get_text(strip=True) if region_tag else ''
-    regiaoCidade = regiao.split(',')[1].strip() if ',' in regiao else 'Porto Alegre'
+    regiaoCidade = regiao.split(',')[1].strip() if ',' in regiao else '---'
 
     # Extract Description
     description_tag = item.find('p', {'data-cy': 'rp-cardProperty-description-txt'})
