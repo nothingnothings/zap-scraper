@@ -87,7 +87,7 @@ python test.py
 
 ## Observações
 
-- Na raiz do projeto, há um arquivo HTML chamado `scraped_page_example.html` que mostra o formato de página que é afetada pelo scraping do script
+- Na raiz do projeto, há um arquivo HTML chamado `scraped_page_example.html` que mostra o formato de página afetada pelo scraping do script
 - Ainda na raiz do projeto, há o arquivo `output_format_example.json`, que mostra como cada imóvel da página é inserido na tabela SQL final `properties`
 - O script examina apenas uma única página por vez, para evitar a detecção de bots do site. Caso deseje escanear mais do que uma única página, altere o valor da variável `url` na função `searchZapImoveis` para a página desejada.
   
