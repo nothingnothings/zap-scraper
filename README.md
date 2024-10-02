@@ -1,30 +1,33 @@
-<h1 align="center">Zap Scraper - Um Web Scraper Construído em Python</h1>
+<h1 align="center">Zap Scraper - A Web Scraper Built with Python</h1>
 <p align="center">
   <img src="scraper-logo.png" alt="Zap-Scraper-logo" width="120px" height="120px"/>
   <br>
-  <i>Este script é um exemplo de Web Scraper construído em
+  <i>This script is an example of a Web Scraper built in
     <br>Python.</i>
   <br>
 </p>
 
 
+[![en](https://img.shields.io/badge/lang-en-red.svg)](https://github.com/nothingnothings/zap-scraper)
+[![pt-br](https://img.shields.io/badge/lang-pt--br-green.svg)](https://github.com/nothingnothings/zap-scraper/blob/master/README.pt-br.md)
 
-
-## Introdução
-
-
-
-
-Script construído em Python que extrai e armazena informações sobre os anúncios disponibilizados no site Zap Imóveis em um banco de dados SQL containerizado. 
-
-O Script emprega Selenium para o web scraping, e BeautifulSoup para o parse do HTML. 
-
-Para mais informações sobre sua utilização, leia as instruções abaixo.
+## Introduction
 
 
 
 
-## Estrutura de Diretórios do Projeto
+This Python script extracts and stores information about listings available on the Zap Imóveis website in a containerized SQL database.
+
+
+The script uses Selenium for web scraping and BeautifulSoup for the parsing of the HTML.
+
+
+For more information about how to use it, read the instructions below.
+
+
+
+
+## Project's Directory Structure
 
 
 ```
@@ -55,43 +58,44 @@ selenium
 python-dotenv
 ```
 
-## Instalação/Utilização 
+## Installation/Usage 
 
-1. Rode `git clone` para clonar o projeto dentro de seu repositório local Git
+1. Run `git clone` to clone the project into your local Git repository.
 
-2. Crie uma conta gratuita no site [ZenRows](https://www.zenrows.com/) para obter um proxy. Após a criação da conta, copie a URL de proxy vista em `https://app.zenrows.com/builder`, logo abaixo da API key
+2. Create a free account on [ZenRows](https://www.zenrows.com/) to obtain a proxy. After creating the account, copy the proxy URL found at `https://app.zenrows.com/builder`, just below the API key.
 
-3. Insira a URL do proxy (e.g `http://<SUA_API_KEY>:@proxy.zenrows.com:8001`), recebida no ZenRows, no arquivo .env na raiz do projeto. Para isso, renomeie o arquivo `.env.example` para `.env` e adicione a URL do proxy, neste formato:
+3. Insert the proxy URL (e.g., `http://<YOUR_API_KEY>:@proxy.zenrows.com:8001`) received from ZenRows into the `.env` file at the root of the project. To do this, rename the `.env.example` file to `.env` and add the proxy URL in this format:
 ```
-PROXY_URL=<SUA_URL_DE_PROXY>
+PROXY_URL=<YOUR_PROXY_URL>
 ```
-4. Instale a versão correta do [geckodriver](https://github.com/mozilla/geckodriver/releases) para o seu sistema operacional. Baixe e instale a versão adequada (Linux, Mac, Windows) para garantir que o script funcione corretamente
+4. Install the correct version of [geckodriver](https://github.com/mozilla/geckodriver/releases) for your operating system. Download and install the appropriate version (Linux, Mac, Windows) to ensure the script works correctly.
 
-5. O arquivo docker-compose.yml contém uma base de dados SQL pronta para uso. Para inicializá-la, com o Docker instalado e rodando, digite os seguinte comandos: 
+5. The `docker-compose.yml` file contains a ready-to-use SQL database. To initialize it, with Docker installed and running, type the following commands:
+
 ```
 cd docker
 docker-compose up -d
 ```
 
-6. Instale as dependências necessárias listadas no arquivo `requirements.txt` usando o `pip`:
+6. Install the necessary dependencies listed in the `requirements.txt` file using `pip`:
 
 ```
 pip install -r requirements.txt
 ```
 
-7. Antes de executar o script principal `zap.py`, é recomendável rodar o script de teste `test.py`, o qual abre uma página do Google para garantir que tudo está funcionando corretamente:
+7. Before running the main script `zap.py`, it is recommended to run the test script `test.py`, which opens a Google page to ensure everything is working correctly:
 
 ```
 python test.py
 ```
 
-## Observações
+## Notes
 
-- Na raiz do projeto, há um arquivo HTML chamado `scraped_page_example.html` que mostra o formato de página afetada pelo scraping do script
-- Ainda na raiz do projeto, há o arquivo `output_format_example.json`, que mostra como cada imóvel da página é inserido na tabela SQL final `properties`
-- O script examina apenas uma única página por vez, para evitar a detecção de bots do site. Caso deseje escanear mais do que uma única página, altere o valor da variável `url` na função `searchZapImoveis` para a página desejada.
+- In the root of the project, there is an HTML file called `scraped_page_example.html` that shows the format of the page affected by the script's scraping.
+- Also at the root of the project, there is the `output_format_example.json` file, which shows how each property from the page is inserted into the final SQL table `properties`.
+- The script examines only one page at a time to avoid bot detection by the website. If you want to scan more than one page, change the value of the `url` variable in the `searchZapImoveis` function to the desired page.
   
-Exemplo:
+Example:
 
 ```
 # first page
