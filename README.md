@@ -8,13 +8,12 @@
 </p>
 
 
-[![en](https://img.shields.io/badge/lang-en-red.svg)](https://github.com/nothingnothings/zap-scraper)
-[![pt-br](https://img.shields.io/badge/lang-pt--br-green.svg)](https://github.com/nothingnothings/zap-scraper/blob/master/README.pt-br.md)
+
 
 ## Introduction
 
-
-
+[![en](https://img.shields.io/badge/lang-en-red.svg?style=flat-square)](https://github.com/nothingnothings/zap-scraper)
+[![pt-br](https://img.shields.io/badge/lang-pt--br-green.svg?style=flat-square)](https://github.com/nothingnothings/zap-scraper/blob/master/README.pt-br.md)
 
 This Python script extracts and stores information about listings available on the Zap Imóveis website in a containerized SQL database.
 
