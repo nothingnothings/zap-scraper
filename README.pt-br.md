@@ -12,8 +12,8 @@
 
 ## Introdução
 
-
-
+[![en](https://img.shields.io/badge/lang-en-red.svg?style=flat-square)](https://github.com/nothingnothings/zap-scraper)
+[![pt-br](https://img.shields.io/badge/lang-pt--br-green.svg?style=flat-square)](https://github.com/nothingnothings/zap-scraper/blob/master/README.pt-br.md)
 
 Script construído em Python que extrai e armazena informações sobre os anúncios disponibilizados no site Zap Imóveis em um banco de dados SQL containerizado. 
 
