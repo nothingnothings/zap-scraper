@@ -69,17 +69,16 @@ conn = pymysql.connect(**db_params)
 cur = conn.cursor()
 
 # Desired Table
-TABLE_NAME = 'properties'
+TABLE_NAME = 'properties_poa_3_dorm'
 
-# DDL Statement
+# DDL Statement - CORRIGIDO: removi a coluna duplicada 'rua'
 TABLE_CREATION_QUERY = f'''
 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     id SERIAL PRIMARY KEY,
-    regiao TEXT,
+    rua TEXT,
     preco TEXT,
     url TEXT,
-    rua TEXT,
-    regiaoCidade TEXT,
+    bairro TEXT,
     areaEmM2 TEXT,
     n_dormitorios TEXT,
     n_banheiros TEXT,
@@ -131,20 +130,22 @@ def search_zap_imoveis():
     # Only a single page is loaded, to avoid the site's bot countermeasures
     for x in range(1, 2):
         print("Zap Imoveis - page", x)
-
-        # Load initial page
-        url = "https://www.zapimoveis.com.br/venda/apartamentos/sp+sao-paulo/4-quartos/"
+        # Load initial page (33 pages)
+        page = 33
+        url = f"https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/?onde=%2CRio+Grande+do+Sul%2CPorto+Alegre%2C%2C%2C%2C%2Ccity%2CBR%3ERio+Grande+do+Sul%3ENULL%3EPorto+Alegre%2C-30.036818%2C-51.208989%2C&tipos=apartamento_residencial&pagina=2&amenities=Elevador&banheiros=2&quartos=3%2C4&vagas=2&precoMaximo=700000&precoMaximoCondo=1000&areaMinima=100&areaMaxima=180&transacao=venda"
         soup = return_selenium_soup(url, 2.5)
 
         # Scroll page down, to load more items (page has infinite scroll loading mechanism)
-        scroll_down()
+        scroll_down()   
 
         # Load page content after the scrolling
         result = driver.page_source
         soup = BeautifulSoup(result, 'lxml')
 
-        # Find all relevant items on the page
-        items = soup.findAll("div", { "class": re.compile(r"ListingCard_result-card__")})
+        # Find property items
+        items = soup.find_all("li", {"data-cy": "rp-property-cd"})
+        
+        print(f"Found {len(items)} property items.")
 
         # Parse each item, creating a JSON object for each one
         for soup_item in items:
@@ -178,7 +179,7 @@ def scroll_down(min_scroll_amount=1000,
     total_scrolled = 0
 
     # 160000 is a fair amount
-    while total_scrolled < 200000: 
+    while total_scrolled < 50000:
         # Calculate the next scroll amount
         scroll_amount = random.randint(min_scroll_amount, max_scroll_amount)
 
@@ -217,89 +218,145 @@ def parse_item(property_item):
     '''
     Parses and extracts data from a single item.
     '''
+    try:
+        # The property data is inside an <a> tag within the <li>
+        link_tag = property_item.find('a')
+        if not link_tag:
+            return False
 
-    # Extract Title
-    title_tag = property_item.find('h2', {'data-cy': 'rp-cardProperty-location-txt'})
-    title = title_tag.get_text(strip=True) if title_tag else ''
+        # Extract URL
+        url = link_tag.get('href', '')
+        if not url.startswith('http'):
+            url = "https://www.zapimoveis.com.br" + url
 
-    # Extract Price
-    price_tag = property_item.find(
-    'p',
-    {
-        'class': (
-            'l-text l-u-color-neutral-28 l-text--variant-heading-small '
-            'l-text--weight-bold undefined'
-        )
-    })
+        # Extract Title - look for h2 with location data
+        title_tag = link_tag.find('h2', {'data-cy': 'rp-cardProperty-location-txt'})
+        title = title_tag.get_text(strip=True) if title_tag else ''
+        
+        # Extract Street (nome da rua)
+        street_tag = link_tag.find('p', {'data-cy': 'rp-cardProperty-street-txt'})
+        street = street_tag.get_text(strip=True) if street_tag else ''
 
-    print(price_tag)
-    price = price_tag.get_text(strip=True) if price_tag else ''
+        # Extract bairro information - CORRIGIDO: extrair do span dentro do h2
+        bairro = ''
+        if title_tag:
+            # Primeiro tenta pegar o texto do span (descrição do imóvel)
+            span_tag = title_tag.find('span')
+            span_text = span_tag.get_text(strip=True) if span_tag else ''
+            
+            # O bairro e cidade estão no texto principal do h2 (após o span)
+            # O formato é: "Bairro, Cidade"
+            h2_text = title_tag.get_text()
+            if span_tag:
+                # Remove o texto do span do texto completo para ficar só com "Bairro, Cidade"
+                h2_text = h2_text.replace(span_text, '').strip()
+            
+            if ',' in h2_text:
+                parts = h2_text.split(',')
+                bairro = parts[0].strip()  # Primeira parte é o bairro
+            else:
+                bairro = h2_text.strip()
 
-    # Extract URL
-    url_tag = property_item.find('a', {'itemprop': 'url'})
-    url = url_tag['href'] if url_tag else ''
+        # Extract Price - look for price element
+        price_tag = link_tag.find('p', class_=lambda x: x and 'text-2-25' in x and 'text-neutral-120' in x)
+        if not price_tag:
+            # Alternative approach for price
+            price_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
+            if price_div:
+                price_tags = price_div.find_all('p')
+                if price_tags:
+                    price_tag = price_tags[0]  # Primeiro p é o preço
+        price = price_tag.get_text(strip=True) if price_tag else ''
 
-    # Extract Region and City
-    region_tag = property_item.find('p', {'data-cy': 'rp-cardProperty-street-txt'})
-    regiao = region_tag.get_text(strip=True) if region_tag else ''
-    regiao_cidade = regiao.split(',')[1].strip() if ',' in regiao else '---'
+        # Extract additional costs (condominio, IPTU)
+        costs_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
+        additional_costs = ''
+        if costs_div:
+            costs_p_tags = costs_div.find_all('p')
+            if len(costs_p_tags) > 1:
+                additional_costs = costs_p_tags[1].get_text(strip=True)
 
-    # Extract Additional Information
-    area_tag = property_item.find('p', {'data-cy': 'rp-cardProperty-propertyArea-txt'})
-    area = area_tag.get_text(strip=True) if area_tag else ''
+        # Extract property features
+        features = link_tag.find('ul', class_=lambda x: x and 'flex flex-row' in x and 'text-1-75' in x)
+        
+        area = ''
+        n_dormitorios = ''
+        n_banheiros = ''
+        n_garagem = ''
+        
+        if features:
+            # Area
+            area_li = features.find('li', {'data-cy': 'rp-cardProperty-propertyArea-txt'})
+            if area_li:
+                area_text = area_li.get_text(strip=True)
+                area_match = re.search(r'(\d+)\s*m²', area_text)
+                area = area_match.group(1) if area_match else re.sub(r'[^\d]', '', area_text)
+            
+            # Bedrooms
+            bedrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bedroomQuantity-txt'})
+            if bedrooms_li:
+                bedrooms_text = bedrooms_li.get_text(strip=True)
+                n_dormitorios = re.sub(r'[^\d]', '', bedrooms_text)
+            
+            # Bathrooms
+            bathrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bathroomQuantity-txt'})
+            if bathrooms_li:
+                bathrooms_text = bathrooms_li.get_text(strip=True)
+                n_banheiros = re.sub(r'[^\d]', '', bathrooms_text)
+            
+            # Parking
+            parking_li = features.find('li', {'data-cy': 'rp-cardProperty-parkingSpacesQuantity-txt'})
+            if parking_li:
+                parking_text = parking_li.get_text(strip=True)
+                n_garagem = re.sub(r'[^\d]', '', parking_text)
 
-    rooms_tag = property_item.find('p', {'data-cy': 'rp-cardProperty-bedroomQuantity-txt'})
-    n_dormitorios = rooms_tag.get_text(strip=True) if rooms_tag else ''
+        # Use additional costs as description for now
+        description = additional_costs
 
-    bathrooms_tag = property_item.find('p', {'data-cy': 'rp-cardProperty-bathroomQuantity-txt'})
-    n_banheiros = bathrooms_tag.get_text(strip=True) if bathrooms_tag else ''
+        json_data = {
+            'rua': street,
+            'preco': price,
+            'url': url,
+            'bairro': bairro,
+            'area': area,
+            'n_dormitorios': n_dormitorios,
+            'n_banheiros': n_banheiros,
+            'n_garagem': n_garagem,
+            'resumo': description
+        }
 
-    parking_tag = property_item.find('p', {'data-cy': 'rp-cardProperty-parkingSpacesQuantity-txt'})
-    n_garagem = parking_tag.get_text(strip=True) if parking_tag else ''
-
-    # Extract Description (resumo)
-    description_tag = property_item.find('p', {'data-cy': 'rp-cardProperty-description-txt'})
-    description = description_tag.get_text(strip=True) if description_tag else ''
-
-    json_data = {
-        'rua': title,
-        'preco': price,
-        'url': url,
-        'regiao': regiao,
-        'regiao_cidade': regiao_cidade,
-        'area': area,
-        'n_dormitorios': n_dormitorios,
-        'n_banheiros': n_banheiros,
-        'n_garagem': n_garagem,
-        'resumo' : description
-    }
-
-    # Create JSON only if object is valid (if url is present)
-    if url:
-        add_json(json_data)
+        # Create JSON only if object is valid (if url is present)
+        if url and url != "https://www.zapimoveis.com.br":
+            add_json(json_data)
+            return True
+            
+    except Exception as e:
+        print(f"Error parsing item: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    
+    return False
 
 
 def add_json(json_data):
     '''
     Creates and appends a JSON object to the JSON List
     '''
-
-    rua = json_data.get('rua')
-    preco = json_data.get('preco')
-    url = json_data.get('url')
-    regiao = json_data.get('regiao')
-    regiao_cidade = json_data.get('regiao_cidade')
-    area = json_data.get('area')
-    n_dormitorios = json_data.get('n_dormitorios')
-    n_banheiros = json_data.get('n_banheiros')
-    n_garagem = json_data.get('n_garagem')
-    resumo = json_data.get('resumo')
+    rua = json_data.get('rua', '')
+    preco = json_data.get('preco', '')
+    url = json_data.get('url', '')
+    bairro = json_data.get('bairro', '')  # NOVO: bairro
+    area = json_data.get('area', '')
+    n_dormitorios = json_data.get('n_dormitorios', '')
+    n_banheiros = json_data.get('n_banheiros', '')
+    n_garagem = json_data.get('n_garagem', '')
+    resumo = json_data.get('resumo', '')
 
     print("Rua: " + str(rua))
     print("Preco: " + str(preco))
-    print("Url: " +  url)
-    print("Regiao: " + regiao)
-    print("Regiao da Cidade: " + regiao_cidade)
+    print("Url: " + url)
+    print("Bairro: " + bairro)  # NOVO: bairro
     print("Área em m2: " + area)
     print("Número de dormitórios: " + str(n_dormitorios))
     print("Número de banheiros: " + str(n_banheiros))
@@ -308,16 +365,15 @@ def add_json(json_data):
     print("----")
 
     json_obj = {
-    "rua": rua,
-    "preco": preco,
-    "url": url,
-    "regiao": regiao,
-    "regiao_cidade": regiao_cidade, 
-    "areaEmM2": area.replace('m²', ''),
-    "n_dormitorios": n_dormitorios,
-    "n_banheiros": n_banheiros,
-    "n_garagem": n_garagem,
-    "resumo" : resumo,
+        "rua": rua,
+        "preco": preco,
+        "url": url,
+        "bairro": bairro,  # NOVO: bairro
+        "areaEmM2": area,
+        "n_dormitorios": n_dormitorios,
+        "n_banheiros": n_banheiros,
+        "n_garagem": n_garagem,
+        "resumo": resumo,
     }
 
     json_list.append(json_obj)
@@ -329,29 +385,29 @@ json_list = []
 # Adds the JSON objects to the JSON List
 search_zap_imoveis()
 
+# CORRIGIDO: A query INSERT estava com número incorreto de parâmetros
 INSERT_QUERY = f'''
 INSERT INTO {TABLE_NAME} (
 rua,
 preco,
 url,
-regiao,
-regiaoCidade,
+bairro,
 areaEmM2,
 n_dormitorios,
 n_banheiros,
 n_garagem,
 resumo
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 '''
+
 # Inserts the JSON objects into the database
 for item in json_list:
     cur.execute(INSERT_QUERY, (
-        item['regiao'],
+        item['rua'],
         item['preco'],
         item['url'],
-        item['rua'],
-        item['regiao_cidade'],
+        item['bairro'],  # NOVO: bairro
         item['areaEmM2'],
         item['n_dormitorios'],
         item['n_banheiros'],
