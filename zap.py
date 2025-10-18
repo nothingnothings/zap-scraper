@@ -124,32 +124,62 @@ except ProgrammingError as e:
 
 def search_zap_imoveis():
     '''
-    Scrape real estate data from Zap Imóveis
+    Scrape multiple Zap Imóveis pages — each in a new Firefox instance.
+    Takes a screenshot of each page and collects listings.
     '''
+    try:
+        num_pages = int(input("Enter number of pages to scrape: "))
+    except ValueError:
+        num_pages = 1
 
-    # Only a single page is loaded, to avoid the site's bot countermeasures
-    for x in range(1, 2):
-        print("Zap Imoveis - page", x)
-        # Load initial page (33 pages)
-        page = 33
-        url = f"https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/?onde=%2CRio+Grande+do+Sul%2CPorto+Alegre%2C%2C%2C%2C%2Ccity%2CBR%3ERio+Grande+do+Sul%3ENULL%3EPorto+Alegre%2C-30.036818%2C-51.208989%2C&tipos=apartamento_residencial&pagina=2&amenities=Elevador&banheiros=2&quartos=3%2C4&vagas=2&precoMaximo=700000&precoMaximoCondo=1000&areaMinima=100&areaMaxima=180&transacao=venda"
-        soup = return_selenium_soup(url, 2.5)
+    for page in range(1, num_pages + 1):
+        print(f"\n🚀 Opening Firefox instance for page {page}...")
 
-        # Scroll page down, to load more items (page has infinite scroll loading mechanism)
-        scroll_down()   
+        # Create a new Firefox instance
+        from selenium import webdriver
+        from selenium.webdriver.firefox.options import Options
 
-        # Load page content after the scrolling
-        result = driver.page_source
-        soup = BeautifulSoup(result, 'lxml')
+        options = Options()
+        options.binary_location = r"C:\Program Files\Mozilla Firefox\firefox.exe"
+        options.add_argument("--disable-notifications")
+        options.add_argument("--mute-audio")
 
-        # Find property items
+        driver_local = webdriver.Firefox(options=options)
+
+        # Compose the page URL
+        url = (
+            "https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/"
+            "?onde=%2CRio+Grande+do+Sul%2CPorto+Alegre%2C%2C%2C%2C%2Ccity%2CBR%3ERio+Grande"
+            "+do+Sul%3ENULL%3EPorto+Alegre%2C-30.036818%2C-51.208989%2C"
+            "&tipos=apartamento_residencial"
+            f"&pagina={page}"
+            "&amenities=Elevador&banheiros=2&quartos=3%2C4&vagas=2"
+            "&precoMaximo=1000000&precoMaximoCondo=1500"
+            "&areaMinima=100&areaMaxima=180&transacao=venda"
+        )
+
+        # Open page and wait for it to load
+        driver_local.get(url)
+        time.sleep(3.5)
+
+        # Take screenshot
+        screenshot_path = f"zapimoveis_page_{page}.png"
+        driver_local.save_screenshot(screenshot_path)
+        print(f"🖼 Screenshot saved: {screenshot_path}")
+
+        # Parse page
+        soup = BeautifulSoup(driver_local.page_source, "lxml")
         items = soup.find_all("li", {"data-cy": "rp-property-cd"})
-        
-        print(f"Found {len(items)} property items.")
+        print(f"🔍 Found {len(items)} properties on page {page}")
 
-        # Parse each item, creating a JSON object for each one
-        for soup_item in items:
-            parse_item(soup_item)
+        for item in items:
+            parse_item(item)
+
+        # Close that instance
+        driver_local.quit()
+        print(f"✅ Closed Firefox for page {page}")
+
+    print(f"\n🎯 Finished scraping {num_pages} page(s). Total items: {len(json_list)}")
 
 
 
