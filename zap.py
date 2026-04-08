@@ -69,7 +69,7 @@ conn = pymysql.connect(**db_params)
 cur = conn.cursor()
 
 # Desired Table
-TABLE_NAME = 'properties_poa_3_dorm'
+TABLE_NAME = 'properties_poa_4_dorm_novo'
 
 # DDL Statement - CORRIGIDO: removi a coluna duplicada 'rua'
 TABLE_CREATION_QUERY = f'''
@@ -148,15 +148,16 @@ def search_zap_imoveis():
 
         # Compose the page URL
         url = (
-            "https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/"
-            "?onde=%2CRio+Grande+do+Sul%2CPorto+Alegre%2C%2C%2C%2C%2Ccity%2CBR%3ERio+Grande"
-            "+do+Sul%3ENULL%3EPorto+Alegre%2C-30.036818%2C-51.208989%2C"
+            "https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/4-quartos/"
+            "?transacao=venda"
             "&tipos=apartamento_residencial"
             f"&pagina={page}"
-            "&amenities=Elevador&banheiros=2&quartos=3%2C4&vagas=2"
-            "&precoMaximo=1000000&precoMaximoCondo=1500"
-            "&areaMinima=100&areaMaxima=180&transacao=venda"
+            "&precoMaximo=800000"
+            "&precoMinimo=200000"
         )
+        
+        # The full URL is:
+        # https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/?transacao=venda&tipos=apartamento_residencial&pagina=1&precoMaximo=700000&precoMinimo=200000
 
         # Open page and wait for it to load
         driver_local.get(url)
@@ -307,7 +308,7 @@ def parse_item(property_item):
                 additional_costs = costs_p_tags[1].get_text(strip=True)
 
         # Extract property features
-        features = link_tag.find('ul', class_=lambda x: x and 'flex flex-row' in x and 'text-1-75' in x)
+        features = link_tag.find('ul', class_=lambda x: x and 'text-1-75' in x)
         
         area = ''
         n_dormitorios = ''
