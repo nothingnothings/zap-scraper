@@ -21,37 +21,20 @@ import warnings
 import os
 from dotenv import load_dotenv
 
+
 # Third-party library imports
 import pymysql
 from pymysql.err import OperationalError, ProgrammingError
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.common.by import By
+from seleniumbase import SB
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Retrieve the proxy URL from the environment variable
-proxy_url = os.getenv('PROXY_URL')
 
 # Ignore warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# Proxy configuration
-proxy = {
-    "http": proxy_url
-}
-
-# Set up Firefox browser options
-options = Options()
-options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe'
-options.add_argument("--disable-notifications")
-options.add_argument("--mute-audio")
-options.add_argument(f"--proxy-server={proxy}")
-
-# Assign options to Firefox driver
-driver = webdriver.Firefox(options=options)
 
 # Database Parameters
 db_params = {
@@ -69,7 +52,7 @@ conn = pymysql.connect(**db_params)
 cur = conn.cursor()
 
 # Desired Table
-TABLE_NAME = 'properties_poa_4_dorm_novo'
+TABLE_NAME = 'properties_poa_4_dorm_novo_imovelweb'
 
 # DDL Statement - CORRIGIDO: removi a coluna duplicada 'rua'
 TABLE_CREATION_QUERY = f'''
@@ -122,78 +105,90 @@ except ProgrammingError as e:
 # Functions:
 
 
+from seleniumbase import SB
+import random
+
 def search_zap_imoveis():
     '''
-    Scrape multiple Zap Imóveis pages — each in a new Firefox instance.
-    Takes a screenshot of each page and collects listings.
+    Scrape multiple pages using ONE SeleniumBase session
+    (avoids Cloudflare blocking)
     '''
     try:
         num_pages = int(input("Enter number of pages to scrape: "))
     except ValueError:
         num_pages = 1
 
-    for page in range(1, num_pages + 1):
-        print(f"\n🚀 Opening Firefox instance for page {page}...")
+    min_bed = 3
+    max_bed = 4
+    num_garage = 2
+    min_price = 200000
+    max_price = 800000
 
-        # Create a new Firefox instance
-        from selenium import webdriver
-        from selenium.webdriver.firefox.options import Options
+    # ✅ ONE browser session only
+    with SB(browser="chrome", headless=False, uc=True) as sb:
 
-        options = Options()
-        options.binary_location = r"C:\Program Files\Mozilla Firefox\firefox.exe"
-        options.add_argument("--disable-notifications")
-        options.add_argument("--mute-audio")
+        for page in range(1, num_pages + 1):
+            print(f"\n🚀 Opening page {page}...")
 
-        driver_local = webdriver.Firefox(options=options)
+            url = (
+                f"https://www.imovelweb.com.br/"
+                f"apartamentos-venda-porto-alegre-rs-"
+                f"desde-{min_bed}-ate-{max_bed}-quartos-"
+                f"mais-de-{num_garage}-vagas-"
+                f"{min_price}-{max_price}-reales"
+                f"-pagina-{page}.html"
+            )
 
-        # Compose the page URL
-        url = (
-            "https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/4-quartos/"
-            "?transacao=venda"
-            "&tipos=apartamento_residencial"
-            f"&pagina={page}"
-            "&precoMaximo=800000"
-            "&precoMinimo=200000"
-        )
-        
-        # The full URL is:
-        # https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/?transacao=venda&tipos=apartamento_residencial&pagina=1&precoMaximo=700000&precoMinimo=200000
+            sb.open(url)
 
-        # Open page and wait for it to load
-        driver_local.get(url)
-        time.sleep(3.5)
+            # wait for page to load
+            sb.wait_for_element("body", timeout=15)
 
-        # Take screenshot
-        screenshot_path = f"zapimoveis_page_{page}.png"
-        driver_local.save_screenshot(screenshot_path)
-        print(f"🖼 Screenshot saved: {screenshot_path}")
+            # ✅ human-like delay
+            sb.sleep(random.uniform(2.5, 5.5))
 
-        # Parse page
-        soup = BeautifulSoup(driver_local.page_source, "lxml")
-        items = soup.find_all("li", {"data-cy": "rp-property-cd"})
-        print(f"🔍 Found {len(items)} properties on page {page}")
+            # ✅ simulate user behavior
+            sb.scroll_to_bottom()
+            sb.sleep(random.uniform(1.0, 2.5))
+            sb.scroll_to_top()
+            sb.sleep(random.uniform(1.0, 2.0))
 
-        for item in items:
-            parse_item(item)
+            html = sb.get_page_source()
 
-        # Close that instance
-        driver_local.quit()
-        print(f"✅ Closed Firefox for page {page}")
+            # 🚫 detect Cloudflare block
+            if "Just a moment" in html or "cf-challenge" in html:
+                print("🚫 Blocked by Cloudflare! Stopping...")
+                break
 
-    print(f"\n🎯 Finished scraping {num_pages} page(s). Total items: {len(json_list)}")
+            soup = BeautifulSoup(html, "lxml")
+
+            # ⚠️ adjust selector if needed
+            items = soup.find_all("div", {"data-qa": "posting PROPERTY"})
+
+            print(f"🔍 Found {len(items)} properties on page {page}")
+
+            # 🚫 if suddenly zero → likely block
+            if len(items) == 0:
+                print("⚠️ No items found — possible block or end of results")
+                break
+
+            for item in items:
+                parse_item(item)
+
+            print(f"✅ Finished page {page}")
+
+            # ✅ delay between pages (VERY important)
+            sb.sleep(random.uniform(3.0, 7.0))
+
+    print(f"\n🎯 Finished scraping. Total items: {len(json_list)}")
 
 
 
-def return_selenium_soup(url, time_await):
-    '''
-    Return BeautifulSoup object for a given URL 
-    '''
-
-    driver.get(url)
-    time.sleep(time_await)
-    result = driver.page_source
-    soup = BeautifulSoup(result, 'lxml')
-    return soup
+def return_selenium_soup(url):
+    with SB(browser="firefox", headless=True) as sb:
+        sb.open(url)
+        sb.wait_for_element("body", timeout=10)
+        return BeautifulSoup(sb.get_page_source(), "lxml")
 
 
 
@@ -247,105 +242,97 @@ def button_click(xpath):
 
 def parse_item(property_item):
     '''
-    Parses and extracts data from a single item.
+    Parses and extracts data from a single ImovelWeb property card.
     '''
     try:
-        # The property data is inside an <a> tag within the <li>
-        link_tag = property_item.find('a')
-        if not link_tag:
-            return False
+        # Extract URL - from data-to-posting attribute
+        url_path = property_item.get('data-to-posting', '')
+        if url_path:
+            url = "https://www.imovelweb.com.br" + url_path
+        else:
+            # Fallback: try to find the link in the description
+            desc_link = property_item.find('a', href=True)
+            url = desc_link.get('href', '') if desc_link else ''
+            if url and not url.startswith('http'):
+                url = "https://www.imovelweb.com.br" + url
 
-        # Extract URL
-        url = link_tag.get('href', '')
-        if not url.startswith('http'):
-            url = "https://www.zapimoveis.com.br" + url
-
-        # Extract Title - look for h2 with location data
-        title_tag = link_tag.find('h2', {'data-cy': 'rp-cardProperty-location-txt'})
-        title = title_tag.get_text(strip=True) if title_tag else ''
-        
-        # Extract Street (nome da rua)
-        street_tag = link_tag.find('p', {'data-cy': 'rp-cardProperty-street-txt'})
-        street = street_tag.get_text(strip=True) if street_tag else ''
-
-        # Extract bairro information - CORRIGIDO: extrair do span dentro do h2
-        bairro = ''
-        if title_tag:
-            # Primeiro tenta pegar o texto do span (descrição do imóvel)
-            span_tag = title_tag.find('span')
-            span_text = span_tag.get_text(strip=True) if span_tag else ''
-            
-            # O bairro e cidade estão no texto principal do h2 (após o span)
-            # O formato é: "Bairro, Cidade"
-            h2_text = title_tag.get_text()
-            if span_tag:
-                # Remove o texto do span do texto completo para ficar só com "Bairro, Cidade"
-                h2_text = h2_text.replace(span_text, '').strip()
-            
-            if ',' in h2_text:
-                parts = h2_text.split(',')
-                bairro = parts[0].strip()  # Primeira parte é o bairro
-            else:
-                bairro = h2_text.strip()
-
-        # Extract Price - look for price element
-        price_tag = link_tag.find('p', class_=lambda x: x and 'text-2-25' in x and 'text-neutral-120' in x)
-        if not price_tag:
-            # Alternative approach for price
-            price_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
-            if price_div:
-                price_tags = price_div.find_all('p')
-                if price_tags:
-                    price_tag = price_tags[0]  # Primeiro p é o preço
+        # Extract Price
+        price_tag = property_item.find('h2', {'data-qa': 'POSTING_CARD_PRICE'})
         price = price_tag.get_text(strip=True) if price_tag else ''
 
-        # Extract additional costs (condominio, IPTU)
-        costs_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
-        additional_costs = ''
-        if costs_div:
-            costs_p_tags = costs_div.find_all('p')
-            if len(costs_p_tags) > 1:
-                additional_costs = costs_p_tags[1].get_text(strip=True)
+        # Extract Condominium fee (optional - can be used as resumo or separate field)
+        condominio_tag = property_item.find('h2', {'data-qa': 'expensas'})
+        condominio = condominio_tag.get_text(strip=True) if condominio_tag else ''
 
-        # Extract property features
-        features = link_tag.find('ul', class_=lambda x: x and 'text-1-75' in x)
+        # Extract Features (area, bedrooms, bathrooms, parking)
+        features_tag = property_item.find('h3', {'data-qa': 'POSTING_CARD_FEATURES'})
         
         area = ''
         n_dormitorios = ''
         n_banheiros = ''
         n_garagem = ''
         
-        if features:
-            # Area
-            area_li = features.find('li', {'data-cy': 'rp-cardProperty-propertyArea-txt'})
-            if area_li:
-                area_text = area_li.get_text(strip=True)
-                area_match = re.search(r'(\d+)\s*m²', area_text)
-                area = area_match.group(1) if area_match else re.sub(r'[^\d]', '', area_text)
-            
-            # Bedrooms
-            bedrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bedroomQuantity-txt'})
-            if bedrooms_li:
-                bedrooms_text = bedrooms_li.get_text(strip=True)
-                n_dormitorios = re.sub(r'[^\d]', '', bedrooms_text)
-            
-            # Bathrooms
-            bathrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bathroomQuantity-txt'})
-            if bathrooms_li:
-                bathrooms_text = bathrooms_li.get_text(strip=True)
-                n_banheiros = re.sub(r'[^\d]', '', bathrooms_text)
-            
-            # Parking
-            parking_li = features.find('li', {'data-cy': 'rp-cardProperty-parkingSpacesQuantity-txt'})
-            if parking_li:
-                parking_text = parking_li.get_text(strip=True)
-                n_garagem = re.sub(r'[^\d]', '', parking_text)
+        if features_tag:
+            feature_spans = features_tag.find_all('span', class_='postingMainFeatures-module__posting-main-features-span')
+            for span in feature_spans:
+                text = span.get_text(strip=True)
+                if 'm²' in text:
+                    # Extract area (e.g., "235 m² tot." or "82 m² tot.")
+                    area_match = re.search(r'(\d+)\s*m²', text)
+                    area = area_match.group(1) if area_match else ''
+                elif 'quartos' in text:
+                    # Extract bedrooms (e.g., "3 quartos")
+                    bedrooms_match = re.search(r'(\d+)\s*quartos', text)
+                    n_dormitorios = bedrooms_match.group(1) if bedrooms_match else ''
+                elif 'ban' in text:
+                    # Extract bathrooms (e.g., "3 ban.")
+                    bathroom_match = re.search(r'(\d+)\s*ban', text)
+                    n_banheiros = bathroom_match.group(1) if bathroom_match else ''
+                elif 'vagas' in text:
+                    # Extract parking spaces (e.g., "2 vagas")
+                    parking_match = re.search(r'(\d+)\s*vagas', text)
+                    n_garagem = parking_match.group(1) if parking_match else ''
 
-        # Use additional costs as description for now
-        description = additional_costs
+        # Extract Address and Neighborhood
+        address_tag = property_item.find('h4', class_='postingLocations-module__location-address-in-listing')
+        location_tag = property_item.find('h4', {'data-qa': 'POSTING_CARD_LOCATION'})
+        
+        rua = ''
+        bairro = ''
+        
+        if address_tag:
+            address_text = address_tag.get_text(strip=True)
+            # Extract street name (remove number and neighborhood if present)
+            # Format examples: "Rua Landel de Moura, 710 - Tristeza" or just "Rua Marina Sirângelo Castello"
+            if ' - ' in address_text:
+                parts = address_text.split(' - ')
+                rua = parts[0].strip()
+                # The part after '-' is sometimes the neighborhood, but we'll get bairro from location_tag
+            else:
+                rua = address_text
+        
+        if location_tag:
+            location_text = location_tag.get_text(strip=True)
+            # Format: "Tristeza, Porto Alegre" or "Jardim Itu Sabará, Porto Alegre"
+            if ',' in location_text:
+                bairro = location_text.split(',')[0].strip()
+            else:
+                bairro = location_text
 
+        # Extract Description
+        desc_tag = property_item.find('h2', {'data-qa': 'POSTING_CARD_DESCRIPTION'})
+        if desc_tag:
+            desc_link = desc_tag.find('a')
+            description = desc_link.get_text(strip=True) if desc_link else desc_tag.get_text(strip=True)
+        else:
+            description = ''
+
+        # Use condominium fee as resumo (or combine with description)
+        resumo = condominio if condominio else description[:200] if description else ''
+
+        # Build the data dictionary
         json_data = {
-            'rua': street,
+            'rua': rua,
             'preco': price,
             'url': url,
             'bairro': bairro,
@@ -353,11 +340,11 @@ def parse_item(property_item):
             'n_dormitorios': n_dormitorios,
             'n_banheiros': n_banheiros,
             'n_garagem': n_garagem,
-            'resumo': description
+            'resumo': resumo
         }
 
-        # Create JSON only if object is valid (if url is present)
-        if url and url != "https://www.zapimoveis.com.br":
+        # Only add if we have a valid URL
+        if url and url != "https://www.imovelweb.com.br":
             add_json(json_data)
             return True
             
