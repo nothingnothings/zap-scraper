@@ -92,7 +92,7 @@ python test.py
 
 - In the root of the project, there is an HTML file called `scraped_page_example.html` that shows the format of the page affected by the script's scraping.
 - Also at the root of the project, there is the `output_format_example.json` file, which shows how each property from the page is inserted into the final SQL table `properties`.
-- The script examines only one page at a time to avoid bot detection by the website. If you want to scan more than one page, change the value of the `url` variable in the `searchZapImoveis` function to the desired page.
+- The script has a Zap Imóveis and a Imovel Web version. Choose whichever suits your needs (the Imovel Web version has a cloudflare verification bypass, needed to access the site's contents).
   
 Example:
 
