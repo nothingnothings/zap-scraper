@@ -148,7 +148,7 @@ def search_zap_imoveis():
 
         # Compose the page URL
         url = (
-            "https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/4-quartos/"
+            "https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/"
             "?transacao=venda"
             "&tipos=apartamento_residencial"
             f"&pagina={page}"
@@ -308,7 +308,7 @@ def parse_item(property_item):
                 additional_costs = costs_p_tags[1].get_text(strip=True)
 
         # Extract property features
-        features = link_tag.find('ul', class_=lambda x: x and 'text-1-75' in x)
+        features = link_tag.find('ul', class_=lambda x: x and 'group/amenities-row' in x)
         
         area = ''
         n_dormitorios = ''
