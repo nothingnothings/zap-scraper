@@ -57,8 +57,8 @@ driver = webdriver.Firefox(options=options)
 db_params = {
     'user': 'myuser',
     'password': 'mypassword',
-    'host': 'localhost',  # or '127.0.0.1' if you have trouble with 'localhost'
-    'port': 3306,         # MySQL default port
+    'host': 'localhost',
+    'port': 3306,
     'database': 'mydatabase'
 }
 
@@ -69,9 +69,9 @@ conn = pymysql.connect(**db_params)
 cur = conn.cursor()
 
 # Desired Table
-TABLE_NAME = 'properties_poa_4_dorm_novo'
+TABLE_NAME = 'properties_poa_4_dorm_novo_olx_preco_maior'
 
-# DDL Statement - CORRIGIDO: removi a coluna duplicada 'rua'
+
 TABLE_CREATION_QUERY = f'''
 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     id SERIAL PRIMARY KEY,
@@ -121,24 +121,22 @@ except ProgrammingError as e:
 #
 # Functions:
 
-
 def search_zap_imoveis():
-    '''
-    Scrape multiple Zap Imóveis pages — each in a new Firefox instance.
-    Takes a screenshot of each page and collects listings.
-    '''
+    """
+    Scrape multiple OLX pages.
+    Each page is opened in a new Firefox instance.
+    """
+
     try:
         num_pages = int(input("Enter number of pages to scrape: "))
     except ValueError:
         num_pages = 1
 
     for page in range(1, num_pages + 1):
+
         print(f"\n🚀 Opening Firefox instance for page {page}...")
 
         # Create a new Firefox instance
-        from selenium import webdriver
-        from selenium.webdriver.firefox.options import Options
-
         options = Options()
         options.binary_location = r"C:\Program Files\Mozilla Firefox\firefox.exe"
         options.add_argument("--disable-notifications")
@@ -146,42 +144,61 @@ def search_zap_imoveis():
 
         driver_local = webdriver.Firefox(options=options)
 
-        # Compose the page URL
+        # Compose OLX URL
         url = (
-            "https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/"
-            "?transacao=venda"
-            "&tipos=apartamento_residencial"
-            f"&pagina={page}"
-            "&precoMaximo=800000"
-            "&precoMinimo=200000"
+            "https://www.olx.com.br/imoveis/venda/estado-rs/"
+            "regioes-de-porto-alegre-torres-e-santa-cruz-do-sul"
+            "?ps=600000"
+            "&pe=1200000"
+            "&ipe=3000"
+            "&bas=2"
+            "&gsp=2"
+            "&ss=125"
+            "&se=250"
+            "&ros=3"
+            "&ros=4"
+            f"&o={page}"
         )
-        
-        # The full URL is:
-        # https://www.zapimoveis.com.br/venda/apartamentos/rs+porto-alegre/3-quartos/?transacao=venda&tipos=apartamento_residencial&pagina=1&precoMaximo=700000&precoMinimo=200000
 
-        # Open page and wait for it to load
+        print(f"🌐 URL: {url}")
+
+        # Open page
         driver_local.get(url)
-        time.sleep(3.5)
+
+        # Wait for page to load
+        time.sleep(5)
 
         # Take screenshot
-        screenshot_path = f"zapimoveis_page_{page}.png"
+        screenshot_path = f"olx_page_{page}.png"
         driver_local.save_screenshot(screenshot_path)
+
         print(f"🖼 Screenshot saved: {screenshot_path}")
 
         # Parse page
-        soup = BeautifulSoup(driver_local.page_source, "lxml")
-        items = soup.find_all("li", {"data-cy": "rp-property-cd"})
-        print(f"🔍 Found {len(items)} properties on page {page}")
+        soup = BeautifulSoup(
+            driver_local.page_source,
+            "lxml"
+        )
+
+        # OLX property cards
+        items = soup.select("section.olx-adcard")
+
+        print(
+            f"🔍 Found {len(items)} properties on page {page}"
+        )
 
         for item in items:
             parse_item(item)
 
-        # Close that instance
+        # Close Firefox
         driver_local.quit()
+
         print(f"✅ Closed Firefox for page {page}")
 
-    print(f"\n🎯 Finished scraping {num_pages} page(s). Total items: {len(json_list)}")
-
+    print(
+        f"\n🎯 Finished scraping {num_pages} page(s). "
+        f"Total items: {len(json_list)}"
+    )
 
 
 def return_selenium_soup(url, time_await):
@@ -246,128 +263,255 @@ def button_click(xpath):
 
 
 def parse_item(property_item):
-    '''
-    Parses and extracts data from a single item.
-    '''
+    """
+    Parses a single OLX property card.
+    """
+
     try:
-        # The property data is inside an <a> tag within the <li>
-        link_tag = property_item.find('a')
+
+        # ---------------------------------------------------------
+        # URL
+        # ---------------------------------------------------------
+
+        link_tag = property_item.find(
+            "a",
+            {"data-testid": "adcard-link"}
+        )
+
         if not link_tag:
             return False
 
-        # Extract URL
-        url = link_tag.get('href', '')
-        if not url.startswith('http'):
-            url = "https://www.zapimoveis.com.br" + url
+        url = link_tag.get("href", "").strip()
 
-        # Extract Title - look for h2 with location data
-        title_tag = link_tag.find('h2', {'data-cy': 'rp-cardProperty-location-txt'})
-        title = title_tag.get_text(strip=True) if title_tag else ''
-        
-        # Extract Street (nome da rua)
-        street_tag = link_tag.find('p', {'data-cy': 'rp-cardProperty-street-txt'})
-        street = street_tag.get_text(strip=True) if street_tag else ''
+        if not url:
+            return False
 
-        # Extract bairro information - CORRIGIDO: extrair do span dentro do h2
-        bairro = ''
-        if title_tag:
-            # Primeiro tenta pegar o texto do span (descrição do imóvel)
-            span_tag = title_tag.find('span')
-            span_text = span_tag.get_text(strip=True) if span_tag else ''
-            
-            # O bairro e cidade estão no texto principal do h2 (após o span)
-            # O formato é: "Bairro, Cidade"
-            h2_text = title_tag.get_text()
-            if span_tag:
-                # Remove o texto do span do texto completo para ficar só com "Bairro, Cidade"
-                h2_text = h2_text.replace(span_text, '').strip()
-            
-            if ',' in h2_text:
-                parts = h2_text.split(',')
-                bairro = parts[0].strip()  # Primeira parte é o bairro
+        # OLX URLs are already absolute
+        if not url.startswith("http"):
+            url = "https://www.olx.com.br" + url
+
+
+        # ---------------------------------------------------------
+        # TITLE
+        # ---------------------------------------------------------
+
+        title_tag = property_item.find(
+            "h2",
+            class_=lambda x: x and "olx-adcard__title" in x
+        )
+
+        title = (
+            title_tag.get_text(strip=True)
+            if title_tag
+            else ""
+        )
+
+
+        # ---------------------------------------------------------
+        # STREET
+        # ---------------------------------------------------------
+
+        # The supplied OLX HTML does not contain the street.
+        # Therefore, leave it empty rather than guessing from
+        # the property title.
+
+        street = ""
+
+
+        # ---------------------------------------------------------
+        # LOCATION / BAIRRO
+        # ---------------------------------------------------------
+
+        location_tag = property_item.find(
+            "p",
+            class_=lambda x: x and "olx-adcard__location" in x
+        )
+
+        location = (
+            location_tag.get_text(" ", strip=True)
+            if location_tag
+            else ""
+        )
+
+        bairro = ""
+
+        if location:
+
+            # Example:
+            # "Porto Alegre, Jardim Sabará"
+            #
+            # or:
+            # "Gravataí, Loteamento Jardim Timbaúva"
+
+            parts = [
+                part.strip()
+                for part in location.split(",")
+            ]
+
+            if len(parts) >= 2:
+                bairro = parts[-1]
             else:
-                bairro = h2_text.strip()
+                bairro = parts[0]
 
-        # Extract Price - look for price element
-        price_tag = link_tag.find('p', class_=lambda x: x and 'text-2-25' in x and 'text-neutral-120' in x)
-        if not price_tag:
-            # Alternative approach for price
-            price_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
-            if price_div:
-                price_tags = price_div.find_all('p')
-                if price_tags:
-                    price_tag = price_tags[0]  # Primeiro p é o preço
-        price = price_tag.get_text(strip=True) if price_tag else ''
 
-        # Extract additional costs (condominio, IPTU)
-        costs_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
-        additional_costs = ''
-        if costs_div:
-            costs_p_tags = costs_div.find_all('p')
-            if len(costs_p_tags) > 1:
-                additional_costs = costs_p_tags[1].get_text(strip=True)
+        # ---------------------------------------------------------
+        # PRICE
+        # ---------------------------------------------------------
 
-        # Extract property features
-        features = link_tag.find('ul', class_=lambda x: x and 'group/amenities-row' in x)
-        
-        area = ''
-        n_dormitorios = ''
-        n_banheiros = ''
-        n_garagem = ''
-        
-        if features:
+        price_tag = property_item.find(
+            "h3",
+            class_=lambda x: x and "olx-adcard__price" in x
+        )
+
+        price = (
+            price_tag.get_text(strip=True)
+            if price_tag
+            else ""
+        )
+
+
+        # ---------------------------------------------------------
+        # ADDITIONAL COSTS
+        # ---------------------------------------------------------
+
+        additional_costs = []
+
+        price_info_tags = property_item.select(
+            '[data-testid="adcard-price-info"]'
+        )
+
+        for tag in price_info_tags:
+
+            cost = tag.get_text(" ", strip=True)
+
+            if cost:
+                additional_costs.append(cost)
+
+        description = " | ".join(additional_costs)
+
+
+        # ---------------------------------------------------------
+        # PROPERTY FEATURES
+        # ---------------------------------------------------------
+
+        area = ""
+        n_dormitorios = ""
+        n_banheiros = ""
+        n_garagem = ""
+
+
+        # OLX puts the information in aria-label.
+        #
+        # Examples from HTML:
+        #
+        # aria-label="208 metros quadrados"
+        # aria-label="3 quartos"
+        # aria-label="2 banheiros"
+        # aria-label="2 vagas de garagem"
+
+        detail_tags = property_item.select(
+            "div.olx-adcard__detail"
+        )
+
+
+        for detail in detail_tags:
+
+            aria_label = detail.get("aria-label", "").strip()
+
+            if not aria_label:
+                continue
+
+
             # Area
-            area_li = features.find('li', {'data-cy': 'rp-cardProperty-propertyArea-txt'})
-            if area_li:
-                area_text = area_li.get_text(strip=True)
-                area_match = re.search(r'(\d+)\s*m²', area_text)
-                area = area_match.group(1) if area_match else re.sub(r'[^\d]', '', area_text)
-            
-            # Bedrooms
-            bedrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bedroomQuantity-txt'})
-            if bedrooms_li:
-                bedrooms_text = bedrooms_li.get_text(strip=True)
-                n_dormitorios = re.sub(r'[^\d]', '', bedrooms_text)
-            
-            # Bathrooms
-            bathrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bathroomQuantity-txt'})
-            if bathrooms_li:
-                bathrooms_text = bathrooms_li.get_text(strip=True)
-                n_banheiros = re.sub(r'[^\d]', '', bathrooms_text)
-            
-            # Parking
-            parking_li = features.find('li', {'data-cy': 'rp-cardProperty-parkingSpacesQuantity-txt'})
-            if parking_li:
-                parking_text = parking_li.get_text(strip=True)
-                n_garagem = re.sub(r'[^\d]', '', parking_text)
+            if "metros quadrados" in aria_label.lower():
 
-        # Use additional costs as description for now
-        description = additional_costs
+                match = re.search(
+                    r"([\d.,]+)\s*metros quadrados",
+                    aria_label,
+                    re.IGNORECASE
+                )
+
+                if match:
+                    area = (
+                        match.group(1)
+                        .replace(".", "")
+                        .replace(",", ".")
+                    )
+
+
+            # Bedrooms
+            elif "quartos" in aria_label.lower():
+
+                match = re.search(
+                    r"(\d+)\s*quartos?",
+                    aria_label,
+                    re.IGNORECASE
+                )
+
+                if match:
+                    n_dormitorios = match.group(1)
+
+
+            # Bathrooms
+            elif "banheiros" in aria_label.lower():
+
+                match = re.search(
+                    r"(\d+)\s*banheiros?",
+                    aria_label,
+                    re.IGNORECASE
+                )
+
+                if match:
+                    n_banheiros = match.group(1)
+
+
+            # Parking
+            elif "vagas de garagem" in aria_label.lower():
+
+                match = re.search(
+                    r"(\d+)\s*vagas?\s*de\s*garagem",
+                    aria_label,
+                    re.IGNORECASE
+                )
+
+                if match:
+                    n_garagem = match.group(1)
+
+
+        # ---------------------------------------------------------
+        # DATA
+        # ---------------------------------------------------------
 
         json_data = {
-            'rua': street,
-            'preco': price,
-            'url': url,
-            'bairro': bairro,
-            'area': area,
-            'n_dormitorios': n_dormitorios,
-            'n_banheiros': n_banheiros,
-            'n_garagem': n_garagem,
-            'resumo': description
+            "rua": street,
+            "preco": price,
+            "url": url,
+            "bairro": bairro,
+            "area": area,
+            "n_dormitorios": n_dormitorios,
+            "n_banheiros": n_banheiros,
+            "n_garagem": n_garagem,
+            "resumo": description,
         }
 
-        # Create JSON only if object is valid (if url is present)
-        if url and url != "https://www.zapimoveis.com.br":
-            add_json(json_data)
-            return True
-            
+
+        # ---------------------------------------------------------
+        # ADD TO JSON LIST
+        # ---------------------------------------------------------
+
+        add_json(json_data)
+
+        return True
+
+
     except Exception as e:
-        print(f"Error parsing item: {e}")
+
+        print(f"❌ Error parsing OLX item: {e}")
+
         import traceback
         traceback.print_exc()
+
         return False
-    
-    return False
 
 
 def add_json(json_data):
