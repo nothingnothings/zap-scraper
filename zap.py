@@ -69,7 +69,7 @@ conn = pymysql.connect(**db_params)
 cur = conn.cursor()
 
 # Desired Table
-TABLE_NAME = 'properties_poa_4_dorm_novo_olx_preco_maior'
+TABLE_NAME = 'properties_poa_4_dorm_teste'
 
 
 TABLE_CREATION_QUERY = f'''
@@ -83,9 +83,11 @@ CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     n_dormitorios TEXT,
     n_banheiros TEXT,
     n_garagem TEXT,
-    resumo TEXT
+    IPTU TEXT,
+    condominio TEXT
 );
 '''
+
 
 # Table Helper Function:
 def table_exists(cursor, table_name):
@@ -102,6 +104,59 @@ def table_exists(cursor, table_name):
     """
     cursor.execute(query)
     return cursor.fetchone()[0]
+
+
+def parse_additional_costs(resumo):
+    """
+    Separates the resumo field into IPTU and condominio.
+
+    Examples:
+        "IPTU R$ 1.200 | Condomínio R$ 203"
+            -> ("R$ 1.200", "R$ 203")
+
+        "IPTU R$ 100"
+            -> ("R$ 100", "")
+
+        "Condomínio R$ 700"
+            -> ("", "R$ 700")
+
+        ""
+            -> ("", "")
+    """
+
+    iptu = ""
+    condominio = ""
+
+    if not resumo:
+        return iptu, condominio
+
+    parts = resumo.split("|")
+
+    for part in parts:
+        part = part.strip()
+
+        if re.search(r"\bIPTU\b", part, re.IGNORECASE):
+            value = re.sub(
+                r"^\s*IPTU\s*",
+                "",
+                part,
+                flags=re.IGNORECASE
+            ).strip()
+
+            iptu = value
+
+        elif re.search(r"\bCondom[ií]nio\b", part, re.IGNORECASE):
+            value = re.sub(
+                r"^\s*Condom[ií]nio\s*",
+                "",
+                part,
+                flags=re.IGNORECASE
+            ).strip()
+
+            condominio = value
+
+    return iptu, condominio
+
 
 # Create the 'properties' table if it does not exist
 try:
@@ -518,40 +573,47 @@ def add_json(json_data):
     '''
     Creates and appends a JSON object to the JSON List
     '''
+
     rua = json_data.get('rua', '')
     preco = json_data.get('preco', '')
     url = json_data.get('url', '')
-    bairro = json_data.get('bairro', '')  # NOVO: bairro
+    bairro = json_data.get('bairro', '')
     area = json_data.get('area', '')
     n_dormitorios = json_data.get('n_dormitorios', '')
     n_banheiros = json_data.get('n_banheiros', '')
     n_garagem = json_data.get('n_garagem', '')
     resumo = json_data.get('resumo', '')
 
+    # Split resumo into IPTU and condominio
+    iptu, condominio = parse_additional_costs(resumo)
+
     print("Rua: " + str(rua))
     print("Preco: " + str(preco))
     print("Url: " + url)
-    print("Bairro: " + bairro)  # NOVO: bairro
+    print("Bairro: " + bairro)
     print("Área em m2: " + area)
     print("Número de dormitórios: " + str(n_dormitorios))
     print("Número de banheiros: " + str(n_banheiros))
     print("Número de garagens: " + str(n_garagem))
-    print("Resumo: " + resumo)
+    print("IPTU: " + iptu)
+    print("Condomínio: " + condominio)
     print("----")
 
     json_obj = {
         "rua": rua,
         "preco": preco,
         "url": url,
-        "bairro": bairro,  # NOVO: bairro
+        "bairro": bairro,
         "areaEmM2": area,
         "n_dormitorios": n_dormitorios,
         "n_banheiros": n_banheiros,
         "n_garagem": n_garagem,
-        "resumo": resumo,
+        "IPTU": iptu,
+        "condominio": condominio,
     }
 
     json_list.append(json_obj)
+
 
 # --------------------------------------------------------------------------------------------------
 
@@ -560,21 +622,24 @@ json_list = []
 # Adds the JSON objects to the JSON List
 search_zap_imoveis()
 
+
 # CORRIGIDO: A query INSERT estava com número incorreto de parâmetros
 INSERT_QUERY = f'''
 INSERT INTO {TABLE_NAME} (
-rua,
-preco,
-url,
-bairro,
-areaEmM2,
-n_dormitorios,
-n_banheiros,
-n_garagem,
-resumo
+    rua,
+    preco,
+    url,
+    bairro,
+    areaEmM2,
+    n_dormitorios,
+    n_banheiros,
+    n_garagem,
+    IPTU,
+    condominio
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 '''
+
 
 # Inserts the JSON objects into the database
 for item in json_list:
@@ -582,12 +647,13 @@ for item in json_list:
         item['rua'],
         item['preco'],
         item['url'],
-        item['bairro'],  # NOVO: bairro
+        item['bairro'],
         item['areaEmM2'],
         item['n_dormitorios'],
         item['n_banheiros'],
         item['n_garagem'],
-        item['resumo']
+        item['IPTU'],
+        item['condominio']
     ))
 
 # Commits the transaction
