@@ -52,9 +52,9 @@ conn = pymysql.connect(**db_params)
 cur = conn.cursor()
 
 # Desired Table
-TABLE_NAME = 'properties_poa_4_dorm_novo_imovelweb'
+TABLE_NAME = 'properties_poa_4_dorm_teste'
 
-# DDL Statement - CORRIGIDO: removi a coluna duplicada 'rua'
+# DDL Statement
 TABLE_CREATION_QUERY = f'''
 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     id SERIAL PRIMARY KEY,
@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     n_dormitorios TEXT,
     n_banheiros TEXT,
     n_garagem TEXT,
-    resumo TEXT
+    condominio TEXT,
+    descriptions TEXT
 );
 '''
 
@@ -239,6 +240,45 @@ def button_click(xpath):
     driver.execute_script("arguments[0].click();", ent_to_click)
 
 
+def parse_resumo(resumo):
+    """
+    Separates resumo into condominium and description.
+
+    Examples:
+
+        "R$ 1.216 Condominio"
+            -> ("R$ 1.216", "")
+
+        "Morar em uma região valorizada..."
+            -> ("", "Morar em uma região valorizada...")
+
+        ""
+            -> ("", "")
+    """
+
+    condominio = ""
+    description = ""
+
+    if not resumo:
+        return condominio, description
+
+    # Check whether resumo represents a condominium fee.
+    # Example: "R$ 1.216 Condominio"
+    condominio_match = re.search(
+        r'(R\$\s*[\d.,]+)\s*Condom[ií]nio',
+        resumo,
+        re.IGNORECASE
+    )
+
+    if condominio_match:
+        condominio = condominio_match.group(1).strip()
+        return condominio, description
+
+    # Otherwise, treat the entire resumo as a description
+    description = resumo.strip()
+
+    return condominio, description
+
 
 def parse_item(property_item):
     '''
@@ -260,9 +300,31 @@ def parse_item(property_item):
         price_tag = property_item.find('h2', {'data-qa': 'POSTING_CARD_PRICE'})
         price = price_tag.get_text(strip=True) if price_tag else ''
 
-        # Extract Condominium fee (optional - can be used as resumo or separate field)
-        condominio_tag = property_item.find('h2', {'data-qa': 'expensas'})
-        condominio = condominio_tag.get_text(strip=True) if condominio_tag else ''
+        # Extract Condominium fee
+        condominio_tag = property_item.find(
+            'h2',
+            {'data-qa': 'expensas'}
+        )
+
+        condominio = (
+            condominio_tag.get_text(strip=True)
+            if condominio_tag
+            else ''
+        )
+
+        # ImovelWeb returns something like:
+        # "R$ 1.216 Condominio"
+        #
+        # Remove the word "Condominio", leaving:
+        # "R$ 1.216"
+
+        if condominio:
+            condominio = re.sub(
+                r'\s*Condom[ií]nio\s*$',
+                '',
+                condominio,
+                flags=re.IGNORECASE
+            ).strip()
 
         # Extract Features (area, bedrooms, bathrooms, parking)
         features_tag = property_item.find('h3', {'data-qa': 'POSTING_CARD_FEATURES'})
@@ -320,15 +382,21 @@ def parse_item(property_item):
                 bairro = location_text
 
         # Extract Description
-        desc_tag = property_item.find('h2', {'data-qa': 'POSTING_CARD_DESCRIPTION'})
+        desc_tag = property_item.find(
+            'h2',
+            {'data-qa': 'POSTING_CARD_DESCRIPTION'}
+        )
+
         if desc_tag:
             desc_link = desc_tag.find('a')
-            description = desc_link.get_text(strip=True) if desc_link else desc_tag.get_text(strip=True)
+
+            description = (
+                desc_link.get_text(strip=True)
+                if desc_link
+                else desc_tag.get_text(strip=True)
+            )
         else:
             description = ''
-
-        # Use condominium fee as resumo (or combine with description)
-        resumo = condominio if condominio else description[:200] if description else ''
 
         # Build the data dictionary
         json_data = {
@@ -340,7 +408,8 @@ def parse_item(property_item):
             'n_dormitorios': n_dormitorios,
             'n_banheiros': n_banheiros,
             'n_garagem': n_garagem,
-            'resumo': resumo
+            'condominio': condominio,
+            'descriptions': description
         }
 
         # Only add if we have a valid URL
@@ -361,37 +430,41 @@ def add_json(json_data):
     '''
     Creates and appends a JSON object to the JSON List
     '''
+
     rua = json_data.get('rua', '')
     preco = json_data.get('preco', '')
     url = json_data.get('url', '')
-    bairro = json_data.get('bairro', '')  # NOVO: bairro
+    bairro = json_data.get('bairro', '')
     area = json_data.get('area', '')
     n_dormitorios = json_data.get('n_dormitorios', '')
     n_banheiros = json_data.get('n_banheiros', '')
     n_garagem = json_data.get('n_garagem', '')
-    resumo = json_data.get('resumo', '')
+    condominio = json_data.get('condominio', '')
+    descriptions = json_data.get('descriptions', '')
 
     print("Rua: " + str(rua))
     print("Preco: " + str(preco))
     print("Url: " + url)
-    print("Bairro: " + bairro)  # NOVO: bairro
+    print("Bairro: " + bairro)
     print("Área em m2: " + area)
     print("Número de dormitórios: " + str(n_dormitorios))
     print("Número de banheiros: " + str(n_banheiros))
     print("Número de garagens: " + str(n_garagem))
-    print("Resumo: " + resumo)
+    print("Condomínio: " + condominio)
+    print("Description: " + descriptions)
     print("----")
 
     json_obj = {
         "rua": rua,
         "preco": preco,
         "url": url,
-        "bairro": bairro,  # NOVO: bairro
+        "bairro": bairro,
         "areaEmM2": area,
         "n_dormitorios": n_dormitorios,
         "n_banheiros": n_banheiros,
         "n_garagem": n_garagem,
-        "resumo": resumo,
+        "condominio": condominio,
+        "descriptions": descriptions
     }
 
     json_list.append(json_obj)
@@ -406,17 +479,18 @@ search_zap_imoveis()
 # CORRIGIDO: A query INSERT estava com número incorreto de parâmetros
 INSERT_QUERY = f'''
 INSERT INTO {TABLE_NAME} (
-rua,
-preco,
-url,
-bairro,
-areaEmM2,
-n_dormitorios,
-n_banheiros,
-n_garagem,
-resumo
+    rua,
+    preco,
+    url,
+    bairro,
+    areaEmM2,
+    n_dormitorios,
+    n_banheiros,
+    n_garagem,
+    condominio,
+    descriptions
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 '''
 
 # Inserts the JSON objects into the database
@@ -425,12 +499,13 @@ for item in json_list:
         item['rua'],
         item['preco'],
         item['url'],
-        item['bairro'],  # NOVO: bairro
+        item['bairro'],
         item['areaEmM2'],
         item['n_dormitorios'],
         item['n_banheiros'],
         item['n_garagem'],
-        item['resumo']
+        item['condominio'],
+        item['descriptions']
     ))
 
 # Commits the transaction
