@@ -68,13 +68,11 @@ conn = pymysql.connect(**db_params)
 # Create a cursor object
 cur = conn.cursor()
 
-# Desired Table
-TABLE_NAME = 'properties_poa_4_dorm_novo'
+TABLE_NAME = 'properties_poa_4_teste'
 
-# DDL Statement - CORRIGIDO: removi a coluna duplicada 'rua'
 TABLE_CREATION_QUERY = f'''
 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-    id SERIAL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     rua TEXT,
     preco TEXT,
     url TEXT,
@@ -83,7 +81,9 @@ CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     n_dormitorios TEXT,
     n_banheiros TEXT,
     n_garagem TEXT,
-    resumo TEXT
+    resumo TEXT,
+    condominio TEXT,
+    iptu TEXT
 );
 '''
 
@@ -257,93 +257,197 @@ def parse_item(property_item):
 
         # Extract URL
         url = link_tag.get('href', '')
+
         if not url.startswith('http'):
             url = "https://www.zapimoveis.com.br" + url
 
-        # Extract Title - look for h2 with location data
-        title_tag = link_tag.find('h2', {'data-cy': 'rp-cardProperty-location-txt'})
+        # Extract Title
+        title_tag = link_tag.find(
+            'h2',
+            {'data-cy': 'rp-cardProperty-location-txt'}
+        )
+
         title = title_tag.get_text(strip=True) if title_tag else ''
-        
-        # Extract Street (nome da rua)
-        street_tag = link_tag.find('p', {'data-cy': 'rp-cardProperty-street-txt'})
+
+        # Extract Street
+        street_tag = link_tag.find(
+            'p',
+            {'data-cy': 'rp-cardProperty-street-txt'}
+        )
+
         street = street_tag.get_text(strip=True) if street_tag else ''
 
-        # Extract bairro information - CORRIGIDO: extrair do span dentro do h2
+        # Extract bairro
         bairro = ''
+
         if title_tag:
-            # Primeiro tenta pegar o texto do span (descrição do imóvel)
             span_tag = title_tag.find('span')
-            span_text = span_tag.get_text(strip=True) if span_tag else ''
-            
-            # O bairro e cidade estão no texto principal do h2 (após o span)
-            # O formato é: "Bairro, Cidade"
+            span_text = (
+                span_tag.get_text(strip=True)
+                if span_tag
+                else ''
+            )
+
             h2_text = title_tag.get_text()
+
             if span_tag:
-                # Remove o texto do span do texto completo para ficar só com "Bairro, Cidade"
                 h2_text = h2_text.replace(span_text, '').strip()
-            
+
             if ',' in h2_text:
                 parts = h2_text.split(',')
-                bairro = parts[0].strip()  # Primeira parte é o bairro
+                bairro = parts[0].strip()
             else:
                 bairro = h2_text.strip()
 
-        # Extract Price - look for price element
-        price_tag = link_tag.find('p', class_=lambda x: x and 'text-2-25' in x and 'text-neutral-120' in x)
+        # Extract Price
+        price_tag = link_tag.find(
+            'p',
+            class_=lambda x:
+                x and
+                'text-2-25' in x and
+                'text-neutral-120' in x
+        )
+
         if not price_tag:
-            # Alternative approach for price
-            price_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
+            price_div = link_tag.find(
+                'div',
+                {'data-cy': 'rp-cardProperty-price-txt'}
+            )
+
             if price_div:
                 price_tags = price_div.find_all('p')
-                if price_tags:
-                    price_tag = price_tags[0]  # Primeiro p é o preço
-        price = price_tag.get_text(strip=True) if price_tag else ''
 
-        # Extract additional costs (condominio, IPTU)
-        costs_div = link_tag.find('div', {'data-cy': 'rp-cardProperty-price-txt'})
-        additional_costs = ''
+                if price_tags:
+                    price_tag = price_tags[0]
+
+        price = (
+            price_tag.get_text(strip=True)
+            if price_tag
+            else ''
+        )
+
+        # Extract resumo
+        #
+        # Examples:
+        #   Cond. R$ 850 • IPTU R$ 970
+        #   Cond. isento • IPTU R$ 980
+        #   Cond. não informado • IPTU não informado
+        #   Cond. R$ 310 • IPTU isento
+
+        costs_div = link_tag.find(
+            'div',
+            {'data-cy': 'rp-cardProperty-price-txt'}
+        )
+
+        resumo = ''
+
         if costs_div:
             costs_p_tags = costs_div.find_all('p')
+
             if len(costs_p_tags) > 1:
-                additional_costs = costs_p_tags[1].get_text(strip=True)
+                resumo = costs_p_tags[1].get_text(
+                    " ",
+                    strip=True
+                )
+
+        # Extract condominium from resumo
+        condominio = ''
+
+        if resumo:
+            condominio_match = re.search(
+                r'Cond\.?\s*(.*?)\s*•',
+                resumo,
+                flags=re.IGNORECASE
+            )
+
+            if condominio_match:
+                condominio = condominio_match.group(1).strip()
+
+        # Extract IPTU from resumo
+        iptu = ''
+
+        if resumo:
+            iptu_match = re.search(
+                r'IPTU\s*(.*?)\s*$',
+                resumo,
+                flags=re.IGNORECASE
+            )
+
+            if iptu_match:
+                iptu = iptu_match.group(1).strip()
 
         # Extract property features
-        features = link_tag.find('ul', class_=lambda x: x and 'group/amenities-row' in x)
-        
+        features = link_tag.find(
+            'ul',
+            class_=lambda x:
+                x and 'group/amenities-row' in x
+        )
+
         area = ''
         n_dormitorios = ''
         n_banheiros = ''
         n_garagem = ''
-        
+
         if features:
+
             # Area
-            area_li = features.find('li', {'data-cy': 'rp-cardProperty-propertyArea-txt'})
+            area_li = features.find(
+                'li',
+                {'data-cy': 'rp-cardProperty-propertyArea-txt'}
+            )
+
             if area_li:
                 area_text = area_li.get_text(strip=True)
-                area_match = re.search(r'(\d+)\s*m²', area_text)
-                area = area_match.group(1) if area_match else re.sub(r'[^\d]', '', area_text)
-            
+
+                # Example: "82 m²" -> "82"
+                area = re.sub(r'[^\d]', '', area_text)
+
             # Bedrooms
-            bedrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bedroomQuantity-txt'})
+            bedrooms_li = features.find(
+                'li',
+                {'data-cy': 'rp-cardProperty-bedroomQuantity-txt'}
+            )
+
             if bedrooms_li:
                 bedrooms_text = bedrooms_li.get_text(strip=True)
-                n_dormitorios = re.sub(r'[^\d]', '', bedrooms_text)
-            
+
+                n_dormitorios = re.sub(
+                    r'[^\d]',
+                    '',
+                    bedrooms_text
+                )
+
             # Bathrooms
-            bathrooms_li = features.find('li', {'data-cy': 'rp-cardProperty-bathroomQuantity-txt'})
+            bathrooms_li = features.find(
+                'li',
+                {'data-cy': 'rp-cardProperty-bathroomQuantity-txt'}
+            )
+
             if bathrooms_li:
                 bathrooms_text = bathrooms_li.get_text(strip=True)
-                n_banheiros = re.sub(r'[^\d]', '', bathrooms_text)
-            
+
+                n_banheiros = re.sub(
+                    r'[^\d]',
+                    '',
+                    bathrooms_text
+                )
+
             # Parking
-            parking_li = features.find('li', {'data-cy': 'rp-cardProperty-parkingSpacesQuantity-txt'})
+            parking_li = features.find(
+                'li',
+                {'data-cy': 'rp-cardProperty-parkingSpacesQuantity-txt'}
+            )
+
             if parking_li:
                 parking_text = parking_li.get_text(strip=True)
-                n_garagem = re.sub(r'[^\d]', '', parking_text)
 
-        # Use additional costs as description for now
-        description = additional_costs
+                n_garagem = re.sub(
+                    r'[^\d]',
+                    '',
+                    parking_text
+                )
 
+        # Build JSON
         json_data = {
             'rua': street,
             'preco': price,
@@ -353,58 +457,65 @@ def parse_item(property_item):
             'n_dormitorios': n_dormitorios,
             'n_banheiros': n_banheiros,
             'n_garagem': n_garagem,
-            'resumo': description
+            'resumo': resumo,
+            'condominio': condominio,
+            'iptu': iptu
         }
 
-        # Create JSON only if object is valid (if url is present)
+        # Create JSON only if URL is valid
         if url and url != "https://www.zapimoveis.com.br":
             add_json(json_data)
             return True
-            
+
     except Exception as e:
         print(f"Error parsing item: {e}")
+
         import traceback
         traceback.print_exc()
+
         return False
-    
+
     return False
 
 
 def add_json(json_data):
-    '''
-    Creates and appends a JSON object to the JSON List
-    '''
     rua = json_data.get('rua', '')
     preco = json_data.get('preco', '')
     url = json_data.get('url', '')
-    bairro = json_data.get('bairro', '')  # NOVO: bairro
+    bairro = json_data.get('bairro', '')
     area = json_data.get('area', '')
     n_dormitorios = json_data.get('n_dormitorios', '')
     n_banheiros = json_data.get('n_banheiros', '')
     n_garagem = json_data.get('n_garagem', '')
     resumo = json_data.get('resumo', '')
+    condominio = json_data.get('condominio', '')
+    iptu = json_data.get('iptu', '')
 
     print("Rua: " + str(rua))
     print("Preco: " + str(preco))
     print("Url: " + url)
-    print("Bairro: " + bairro)  # NOVO: bairro
+    print("Bairro: " + bairro)
     print("Área em m2: " + area)
     print("Número de dormitórios: " + str(n_dormitorios))
     print("Número de banheiros: " + str(n_banheiros))
     print("Número de garagens: " + str(n_garagem))
     print("Resumo: " + resumo)
+    print("Condomínio: " + condominio)
+    print("IPTU: " + iptu)
     print("----")
 
     json_obj = {
         "rua": rua,
         "preco": preco,
         "url": url,
-        "bairro": bairro,  # NOVO: bairro
+        "bairro": bairro,
         "areaEmM2": area,
         "n_dormitorios": n_dormitorios,
         "n_banheiros": n_banheiros,
         "n_garagem": n_garagem,
         "resumo": resumo,
+        "condominio": condominio,
+        "iptu": iptu
     }
 
     json_list.append(json_obj)
@@ -416,20 +527,22 @@ json_list = []
 # Adds the JSON objects to the JSON List
 search_zap_imoveis()
 
-# CORRIGIDO: A query INSERT estava com número incorreto de parâmetros
+
 INSERT_QUERY = f'''
 INSERT INTO {TABLE_NAME} (
-rua,
-preco,
-url,
-bairro,
-areaEmM2,
-n_dormitorios,
-n_banheiros,
-n_garagem,
-resumo
+    rua,
+    preco,
+    url,
+    bairro,
+    areaEmM2,
+    n_dormitorios,
+    n_banheiros,
+    n_garagem,
+    resumo,
+    condominio,
+    iptu
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 '''
 
 # Inserts the JSON objects into the database
@@ -438,12 +551,14 @@ for item in json_list:
         item['rua'],
         item['preco'],
         item['url'],
-        item['bairro'],  # NOVO: bairro
+        item['bairro'],
         item['areaEmM2'],
         item['n_dormitorios'],
         item['n_banheiros'],
         item['n_garagem'],
-        item['resumo']
+        item['resumo'],
+        item['condominio'],
+        item['iptu']
     ))
 
 # Commits the transaction
