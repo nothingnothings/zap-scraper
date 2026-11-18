@@ -20,6 +20,7 @@ Features
 * Live metrics panel for the selected category:
     average m², average price, average bedrooms, average bathrooms,
     average garages, average condo fee, average IPTU, counts, min/max.
+* Sort the results by clicking any column header (click again to reverse).
 * Open a listing URL directly in your web browser.
 
 Run:
@@ -27,6 +28,7 @@ Run:
 """
 
 import re
+import unicodedata
 import webbrowser
 
 import tkinter as tk
@@ -200,6 +202,58 @@ def filter_category(rows, category_key):
 
 
 # ---------------------------------------------------------------------------
+# Column sorting -------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+# These columns contain numbers stored as TEXT, so they must be sorted by their
+# parsed value (e.g. 2.800.000 > 213.000), not as plain strings.
+NUMERIC_COLUMNS = {
+    "id", "preco", "areaEmM2", "n_dormitorios", "n_banheiros",
+    "n_garagem", "condominio", "iptu",
+}
+
+
+def _text_sort_key(value):
+    """Case/accent-insensitive key so 'Área' sorts next to 'area'."""
+    text = str(value).strip()
+    if not text:
+        return None
+    decomposed = unicodedata.normalize("NFD", text.casefold())
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def sort_rows(rows, column, ascending=True):
+    """
+    Return a new list of rows sorted by a display column.
+
+    Numeric columns are compared by parsed value; all other columns are
+    compared as case/accent-insensitive text. Rows with no usable value are
+    always placed at the end, in either direction.
+    """
+    rows = list(rows)
+
+    def key_for(row):
+        value = row.get(column)
+        if column in NUMERIC_COLUMNS:
+            return parse_number(value, method="mid")
+        return _text_sort_key(value) if value is not None else None
+
+    valued = []
+    missing = []
+    for row in rows:
+        key = key_for(row)
+        if key is None:
+            missing.append(row)
+        else:
+            valued.append((key, row))
+
+    # Python's sort is stable, so rows with equal keys keep their original
+    # order even when the direction is reversed.
+    valued.sort(key=lambda pair: pair[0], reverse=not ascending)
+    return [row for _, row in valued] + missing
+
+
+# ---------------------------------------------------------------------------
 # Metrics --------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
@@ -350,6 +404,8 @@ class ZapGUI:
         self.rows = []            # all rows for the current table
         self.current_rows = []    # filtered/ordered rows for current category
         self.current_category = "all"
+        self.sort_column = None   # display column currently used for sorting
+        self.sort_ascending = True
 
         self._build_style()
         self._build_ui()
@@ -481,10 +537,10 @@ class ZapGUI:
         self.table_title.grid(row=0, column=0, sticky="w", padx=4, pady=(2, 6))
 
         columns = [key for key, _ in COLUMNS]
-        headings = [h for _, h in COLUMNS]
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         for key, head in COLUMNS:
-            self.tree.heading(key, text=head)
+            self.tree.heading(key, text=head,
+                              command=lambda k=key: self.sort_by_column(k))
             width = 60
             if key in ("rua", "bairro"):
                 width = 150
@@ -560,6 +616,9 @@ class ZapGUI:
             btn.state(["!selected"] if k != key else ["selected"])
         self.table_title.config(text=f"Registros — {label}")
         self.current_rows = filter_category(self.rows, key)
+        if self.sort_column:
+            self.current_rows = sort_rows(self.current_rows, self.sort_column,
+                                          self.sort_ascending)
         self.populate_tree(self.current_rows)
         self.populate_metrics(self.current_rows)
 
@@ -582,6 +641,28 @@ class ZapGUI:
         self.metric_values["avg_garage"].config(text=format_num(m["avg_garage"]))
 
     # ---- interactions ---------------------------------------------------------
+    def _update_headings(self):
+        """Show a direction arrow on the header used for sorting."""
+        for key, head in COLUMNS:
+            if key == self.sort_column:
+                arrow = " ▲" if self.sort_ascending else " ▼"
+                self.tree.heading(key, text=head + arrow)
+            else:
+                self.tree.heading(key, text=head)
+
+    def sort_by_column(self, column):
+        """Sort the visible rows by a column; click again to reverse."""
+        if column == self.sort_column:
+            self.sort_ascending = not self.sort_ascending
+        else:
+            self.sort_column = column
+            self.sort_ascending = True
+
+        self.current_rows = sort_rows(self.current_rows, column,
+                                      self.sort_ascending)
+        self._update_headings()
+        self.populate_tree(self.current_rows)
+
     def on_row_double_click(self, _event):
         item = self.tree.selection()
         if not item:

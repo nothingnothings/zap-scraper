@@ -4,8 +4,8 @@
 Offline test for the GUI's data-processing logic.
 
 This does NOT require a database connection — it exercises the number parsing,
-category filtering, and metrics computation against the sample data found in
-`output_format_example.json`.
+category filtering, column sorting, and metrics computation against the sample
+data found in `output_format_example.json`.
 
 Run:
     python test_gui_logic.py
@@ -107,6 +107,39 @@ def main():
         ppm = [gui._usable_price(r) for r in value]
         check("best-value sorted by ppm ascending",
               all(ppm[i] <= ppm[i + 1] for i in range(len(ppm) - 1)))
+
+    # --- column sorting -------------------------------------------------------
+    by_id = gui.sort_rows(rows, "id")
+    check("sort by id ascending", [r["id"] for r in by_id] ==
+          sorted((r["id"] for r in rows), key=int))
+    check("sort by id descending", [r["id"] for r in gui.sort_rows(rows, "id", False)] ==
+          list(reversed([r["id"] for r in by_id])))
+
+    by_price = gui.sort_rows(rows, "preco")
+    prices = [gui.parse_number(r["preco"]) for r in by_price]
+    usable_prices = [p for p in prices if p is not None]
+    check("numeric sort by price ascending", usable_prices == sorted(usable_prices))
+    check("missing prices go last", prices[:len(usable_prices)] == usable_prices)
+
+    by_area_desc = gui.sort_rows(rows, "areaEmM2", False)
+    areas = [gui.parse_number(r["areaEmM2"]) for r in by_area_desc]
+    usable_areas = [a for a in areas if a is not None]
+    check("numeric sort by area descending", usable_areas == sorted(usable_areas, reverse=True))
+
+    text_rows = [
+        {"bairro": "Água Santa"},
+        {"bairro": "centro"},
+        {"bairro": "Moinhos de Vento"},
+        {"bairro": "Cristal"},
+        {"bairro": ""},
+    ]
+    by_bairro = gui.sort_rows(text_rows, "bairro")
+    check("text sort ignores case and accents",
+          [r["bairro"] for r in by_bairro] ==
+          ["Água Santa", "centro", "Cristal", "Moinhos de Vento", ""])
+    check("text sort descending",
+          [r["bairro"] for r in gui.sort_rows(text_rows, "bairro", False)] ==
+          ["Moinhos de Vento", "Cristal", "centro", "Água Santa", ""])
 
     # --- metrics ---------------------------------------------------------------
     m = gui.compute_metrics(all_rows)

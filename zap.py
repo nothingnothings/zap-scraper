@@ -28,6 +28,9 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.by import By
+from urllib.parse import urljoin
+
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -68,7 +71,7 @@ conn = pymysql.connect(**db_params)
 # Create a cursor object
 cur = conn.cursor()
 
-TABLE_NAME = 'properties_poa_4_teste'
+TABLE_NAME = 'properties_poa_3_novo_teste_novembro'
 
 TABLE_CREATION_QUERY = f'''
 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
@@ -152,8 +155,11 @@ def search_zap_imoveis():
             "?transacao=venda"
             "&tipos=apartamento_residencial"
             f"&pagina={page}"
-            "&precoMaximo=800000"
-            "&precoMinimo=200000"
+            "&precoMaximo=1000000"
+            "&precoMinimo=400000"
+            "&quartos=3"
+            "&areaMinima=125"
+            "&areaMaxima=300"
         )
         
         # The full URL is:
@@ -463,9 +469,43 @@ def parse_item(property_item):
         }
 
         # Create JSON only if URL is valid
-        if url and url != "https://www.zapimoveis.com.br":
-            add_json(json_data)
-            return True
+        url = ""
+
+        anchors = property_item.find_all("a", href=True)
+
+        valid_patterns = (
+            "/imovel/",
+            "/lancamentos/",
+            "/venda/apartamentos/",
+            "/venda/"
+        )
+
+        for anchor in anchors:
+            href = anchor.get("href", "").strip()
+
+            if not href or href == "#":
+                continue
+
+            if any(pattern in href for pattern in valid_patterns):
+                url = urljoin(
+                    "https://www.zapimoveis.com.br",
+                    href
+                )
+                break
+
+        if not url:
+            print(
+                "[INVALID URL] Candidates:",
+                [
+                    urljoin("https://www.zapimoveis.com.br", a["href"])
+                    for a in anchors
+                    if a.get("href", "").strip()
+                ]
+            )
+            return False
+        
+        add_json(json_data)
+        return True
 
     except Exception as e:
         print(f"Error parsing item: {e}")

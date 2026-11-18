@@ -106,6 +106,9 @@ Features:
 - **Live metrics panel** — for the selected category it shows average price per m²,
   average price, average area (m²), average bedrooms, average bathrooms, and
   average garages.
+- **Sortable columns** — click any table header to sort by that column; click it
+  again to reverse the direction. Numeric columns (prices, areas, counts, ID) are
+  sorted by value, and the active header shows the current direction.
 - **Open a listing** — double-click any row to open its page on Zap Imóveis in
   your web browser.
 

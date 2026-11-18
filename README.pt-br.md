@@ -107,6 +107,10 @@ Recursos do painel:
 - **Métricas dinâmicas** — para a categoria selecionada são exibidos: preço
   médio por m², preço médio, área média (m²), média de quartos, média de
   banheiros e média de garagens.
+- **Colunas ordenáveis** — clique no cabeçalho de uma coluna para ordenar por
+  ela; clique novamente para inverter a direção. Colunas numéricas (preços,
+  áreas, contagens e ID) são ordenadas pelo valor, e o cabeçalho ativo mostra
+  a direção atual.
 - **Abrir anúncio** — dê um duplo clique em uma linha para abrir a página do
   imóvel no Zap Imóveis no seu navegador.
 
