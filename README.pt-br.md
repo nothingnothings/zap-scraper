@@ -37,11 +37,14 @@ Para mais informações sobre sua utilização, leia as instruções abaixo.
 ├── .env.example
 ├── .gitignore
 ├── README.md
+├── db_config.py
+├── gui.py
 ├── output_format_example.json
 ├── requirements.txt
 ├── scraped_page_example.html
 ├── scraper-logo.png
 ├── test.py
+├── test_gui_logic.py
 └── zap.py
 ```
 
@@ -83,6 +86,44 @@ pip install -r requirements.txt
 
 ```
 python test.py
+```
+
+## Painel Gráfico (GUI)
+
+O projeto inclui um painel gráfico de desktop para consultar os dados gravados
+pelo scraper. Para abri-lo:
+
+```sh
+python gui.py
+```
+
+Recursos do painel:
+
+- **Escolha a tabela** — selecione qualquer tabela raspada no menu suspenso e
+  clique em *Atualizar*.
+- **Categorias recomendadas** — Todas as listagens, Melhor custo-benefício
+  (menor preço por m²), Maiores apartamentos, Mais quartos, Mais baratos,
+  Mais garagens e Mais caros/luxo.
+- **Métricas dinâmicas** — para a categoria selecionada são exibidos: preço
+  médio por m², preço médio, área média (m²), média de quartos, média de
+  banheiros e média de garagens.
+- **Abrir anúncio** — dê um duplo clique em uma linha para abrir a página do
+  imóvel no Zap Imóveis no seu navegador.
+
+Para conferir se a lógica do painel (parsing de números, filtro de categorias e
+cálculo de métricas) está funcionando sem iniciar o MySQL, execute o teste offline:
+
+```sh
+python test_gui_logic.py
+```
+
+A interface lê as credenciais do banco a partir do mesmo arquivo `.env` usado
+pelo scraper (veja `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` em
+`.env.example`), portanto garanta que o container do banco esteja rodando:
+
+```sh
+cd docker
+docker-compose up -d
 ```
 
 ## Observações

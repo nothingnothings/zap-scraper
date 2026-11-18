@@ -39,11 +39,14 @@ For more information about how to use it, read the instructions below.
 ├── .env.example
 ├── .gitignore
 ├── README.md
+├── db_config.py
+├── gui.py
 ├── output_format_example.json
 ├── requirements.txt
 ├── scraped_page_example.html
 ├── scraper-logo.png
 ├── test.py
+├── test_gui_logic.py
 └── zap.py
 ```
 
@@ -86,6 +89,46 @@ pip install -r requirements.txt
 
 ```
 python test.py
+```
+
+## GUI Dashboard
+
+The project includes a desktop dashboard (`gui.py`) built with Tkinter (bundled with
+Python) that lets you browse the scraped records, view "recommended apartment"
+categories, and inspect aggregate metrics — all without touching SQL.
+
+Features:
+
+- **Browse any scraped table** — pick it from the dropdown and hit *Atualizar*.
+- **Recommended categories** — All listings, Best value (price/m²), Largest
+  apartments, Most rooms (bedrooms), Cheapest listings, Most garages/parking,
+  and Most expensive/luxury.
+- **Live metrics panel** — for the selected category it shows average price per m²,
+  average price, average area (m²), average bedrooms, average bathrooms, and
+  average garages.
+- **Open a listing** — double-click any row to open its page on Zap Imóveis in
+  your web browser.
+
+To launch it:
+
+```sh
+python gui.py
+```
+
+If you'd like to check that the dashboard's data logic (number parsing, category
+filtering, and metrics) is working without starting MySQL, run the offline test:
+
+```sh
+python test_gui_logic.py
+```
+
+The GUI reads its database credentials from the same `.env` file the scraper uses
+(see `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` in `.env.example`),
+so make sure the database container is running:
+
+```sh
+cd docker
+docker-compose up -d
 ```
 
 ## Notes
